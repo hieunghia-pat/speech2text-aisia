@@ -5,17 +5,30 @@ import datasets
 from tqdm import tqdm
 import numpy as np
 import os
+import json
 from typing import List
 from utils.instance import Instance
 
 from data_utils.utils import preprocessing_transcript
 
 class AudioDataset(data.Dataset):
-    def __init__(self, data_files: List[str], tokenizer: PreTrainedTokenizerBase, cache_folder: str = ".cache") -> None:
+    def __init__(self, 
+                    data_files: List[str], 
+                    tokenizer: PreTrainedTokenizerBase, 
+                    cache_folder: str = ".cache", 
+                    split: str = "train") -> None:
         super().__init__()
 
         self.tokenizer = tokenizer
         self.cache_folder = cache_folder
+
+        if os.path.isfile(os.path.join(self.cache_folder, f"{split}.json")):
+            json_data = json.load(open(os.path.join(self.cache_folder, f"{split}.json"), "r"))
+            self.__data = json_data["data"]
+            self.__ids = json_data["ids"]
+            self.max_transcript_len = json_data["max_transcript_len"]
+            return
+
         if not os.path.isdir(self.cache_folder):
             os.mkdir(self.cache_folder)
 
@@ -28,7 +41,7 @@ class AudioDataset(data.Dataset):
         self.max_transcript_len = 0
         id = -1
         for datum in data:
-            for item in tqdm(datum, desc="Extracting data"):
+            for item in tqdm(datum, desc="Getting data"):
                 audio = item["audio"]
                 self.__data[id] = {
                     "path": audio["path"],
@@ -42,6 +55,12 @@ class AudioDataset(data.Dataset):
                 if not os.path.isfile(os.path.join(self.cache_folder, f"{id}.npy")):
                     feature = audio["array"]
                     np.save(os.path.join(cache_folder, f"{id}.npy"), feature)
+
+        json.dump({
+            "data": self.__data,
+            "ids": self.__ids,
+            "max_transcript_len": self.max_transcript_len
+        }, open(os.path.join(self.cache_folder, f"{split}.json"), "w+"), ensure_ascii=False)
 
     def __len__(self):
         return len(self.__ids)
