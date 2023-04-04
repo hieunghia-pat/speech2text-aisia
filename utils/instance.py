@@ -154,18 +154,18 @@ class InstanceList(OrderedDict):
     # special method for concatenating tensor objects
     def pad_values(self, values: List[torch.tensor], padding_value=0) -> List[torch.tensor]:
         padded_values = []
-        max_len = max([value.shape[0] for value in values])
+        max_len = max([value.shape[1] for value in values])
         for value in values:
             additional_len = max_len - value.shape[0]
             
             if additional_len == 0:
-                padded_values.append(value.unsqueeze(0))
+                padded_values.append(value)
                 continue
 
             padding_tensor = torch.zeros((additional_len, value.shape[-1])).fill_(padding_value)
             value = torch.cat([value, padding_tensor], dim=0)
 
-            padded_values.append(value.unsqueeze(0))
+            padded_values.append(value)
         
         return padded_values
 

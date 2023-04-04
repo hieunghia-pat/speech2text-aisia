@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.nn import functional as F
 from transformers import AutoModelForCTC, PreTrainedTokenizerBase
 
 class Wav2Vec2FC(nn.Module):
@@ -17,7 +18,7 @@ class Wav2Vec2FC(nn.Module):
         self.fc = nn.Linear(768, tokenizer.vocab_size)
 
     def forward(self, features: torch.Tensor):
-        features = self.wav2vec(features)
+        features = self.wav2vec(features, output_hidden_states=True).hidden_states[-1]
         features = self.fc(self.dropout(features))
 
-        return features
+        return F.log_softmax(features, dim=-1)

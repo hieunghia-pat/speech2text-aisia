@@ -10,6 +10,7 @@ import os
 from data_utils.dataset import AudioDataset
 from utils.logging_utils import setup_logger
 from data_utils.utils import collate_fn
+from training_utils.metrics import computes
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 logger = setup_logger()
@@ -21,6 +22,8 @@ class Trainer:
                     test_dataset: AudioDataset,
                     model: nn.Module,
                     tokenizer: PreTrainedTokenizerBase,
+                    batch_size: int,
+                    num_wokers: int,
                     checkpoint_path: str) -> None:
         
         self.train_dataset = train_dataset
@@ -37,27 +40,27 @@ class Trainer:
         logger.info("Creating dataloaders")
         self.train_dataloader = data.DataLoader(
             self.train_dataset,
-            batch_size=64,
+            batch_size=batch_size,
             shuffle=True,
             collate_fn=collate_fn,
-            num_workers=2
+            num_workers=num_wokers
         )
         if self.dev_dataset is not None:
             self.dev_dataloader = data.DataLoader(
                 self.dev_dataset,
-                batch_size=64,
+                batch_size=batch_size,
                 shuffle=True,
                 collate_fn=collate_fn,
-                num_workers=2
+                num_workers=num_wokers
             )
         else:
             self.dev_dataloader = None
         self.test_dataloader = data.DataLoader(
             self.test_dataset,
-            batch_size=64,
+            batch_size=batch_size,
             shuffle=True,
             collate_fn=collate_fn,
-            num_workers=2
+            num_workers=num_wokers
         )
 
         logger.info("Defining optimization")
@@ -77,17 +80,35 @@ class Trainer:
         pass
 
     def train(self):
-        cer = 0.
-        wer = 0.
+        total_loss = 0.
+        self.model.train()
         with tqdm(self.train_dataloader, desc=f"Epoch {self.epoch+1} - Training") as pb:
-            for item in pb:
+            for ith, item in enumerate(pb):
                 item = item.to(device)
                 output = self.model(item.features)
-                print(output)
-                raise
+                output_len = torch.zeros((output.shape[0], )).fill_(output.shape[1])
+                self.optim.zero_grad()
+                loss = self.loss_fn(output, item.tokens, item.tokens_len, output_len)
+                loss.backward()
+                self.optim.step()
+
+                total_loss += loss
+                pb.set_postfix({
+                    "loss": total_loss / (ith+1)
+                })
+                pb.update()
 
     def validate(self):
-        pass
+        self.model.eval()
+        with tqdm(self.train_dataloader, desc=f"Epoch {self.epoch+1} - Validating") as pb:
+            for ith, item in enumerate(pb):
+                item = item.to(device)
+                output = self.model(item.features)
+                
+                pb.set_postfix({
+                    "loss": total_loss / (ith+1)
+                })
+                pb.update()
 
     def evaluate(self):
         pass

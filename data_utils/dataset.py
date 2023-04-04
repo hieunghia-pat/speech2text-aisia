@@ -1,4 +1,5 @@
 import torch
+import torchaudio
 from torch.utils import data
 from transformers import PreTrainedTokenizerBase
 import datasets
@@ -24,13 +25,13 @@ class AudioDataset(data.Dataset):
 
         if os.path.isfile(os.path.join(self.cache_folder, f"{split}.json")):
             json_data = json.load(open(os.path.join(self.cache_folder, f"{split}.json"), "r"))
-            self.__data = json_data["data"]
+            self.__data = {int(key): value for key, value in json_data["data"].items()}
             self.__ids = json_data["ids"]
             self.max_transcript_len = json_data["max_transcript_len"]
             return
 
-        if not os.path.isdir(self.cache_folder):
-            os.mkdir(self.cache_folder)
+        if not os.path.isdir(os.path.join(self.cache_folder, split)):
+            os.makedirs(os.path.join(self.cache_folder, split))
 
         data = []
         for data_file in data_files:
@@ -43,18 +44,18 @@ class AudioDataset(data.Dataset):
         for datum in data:
             for item in tqdm(datum, desc="Getting data"):
                 audio = item["audio"]
+                id += 1
                 self.__data[id] = {
                     "path": audio["path"],
+                    "features_path": os.path.join(cache_folder, split, f"{id}.npy"),
                     "transcript": item["transcription"],
                     "sampling_rate": audio["sampling_rate"]
                 }
                 if self.max_transcript_len < len(item["transcription"]):
                     self.max_transcript_len = len(item["transcription"])
-                id += 1
                 self.__ids.append(id)
-                if not os.path.isfile(os.path.join(self.cache_folder, f"{id}.npy")):
-                    feature = audio["array"]
-                    np.save(os.path.join(cache_folder, f"{id}.npy"), feature)
+                feature = audio["array"]
+                np.save(os.path.join(cache_folder, split, f"{id}.npy"), feature)
 
         json.dump({
             "data": self.__data,
@@ -65,28 +66,30 @@ class AudioDataset(data.Dataset):
     def __len__(self):
         return len(self.__ids)
     
-    def __load_features(self, id):
-        file_name = os.path.join(self.cache_folder, f"{id}.npy")
+    def __load_features(self, file_name):
         features = np.load(file_name)
 
         return torch.tensor(features).unsqueeze(0)
     
     def __getitem__(self, index: int):
         id = self.__ids[index]
-        features = self.__load_features(id)
+        features_path = self.__data[id]["features_path"]
+        features = self.__load_features(features_path)
+        # sampling_rate = self.__data[id]["sampling_rate"]
+        # features = torchaudio.functional.resample(features, sampling_rate, 16000)
         
         transcript = self.__data[id]["transcript"]
         transcript = preprocessing_transcript(transcript)
         tokens = self.tokenizer(
                         text=transcript,
+                        add_special_tokens=False,
                         max_length=self.max_transcript_len,
-                        padding=True,
+                        padding="max_length",
                         return_tensors="pt")["input_ids"]
-
-        sampling_rate = self.__data[id]["sampling_rate"]
-        sampling_rate = torch.tensor([sampling_rate])
+        tokens_len = torch.tensor([len(self.tokenizer.tokenize(transcript))])
 
         return Instance(
             features=features,
-            tokens=tokens
+            tokens=tokens,
+            tokens_len=tokens_len
         )
