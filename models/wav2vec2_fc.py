@@ -1,0 +1,26 @@
+from torch import nn
+from transformers import AutoModelForCTC, PreTrainedTokenizerBase
+
+from utils.instance import InstanceList
+
+class Wav2Vec2FC(nn.Module):
+    def __init__(self, pretrained_name: str, tokenizer: PreTrainedTokenizerBase) -> None:
+        super().__init__()
+
+        pretrained_model = AutoModelForCTC.from_pretrained(
+                                            pretrained_name,
+                                            ctc_loss_reduction="mean",
+                                            pad_token_id=tokenizer.pad_token_id)
+        self.wav2vec = pretrained_model.wav2vec2
+        
+        # layers for fine-tuning
+        self.dropout = nn.Dropout(0.5)
+        self.fc = nn.Linear(768, tokenizer.vocab_size)
+
+    def forward(self, input_features: InstanceList):
+        features = input_features.features
+
+        features = self.wav2vec(features)
+        features = self.fc(self.dropout(features))
+
+        return features

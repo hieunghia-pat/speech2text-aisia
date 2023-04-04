@@ -8,7 +8,7 @@ import os
 from typing import List
 from utils.instance import Instance
 
-from data_utils.utils import preprocessing_transcript, pad_tokens
+from data_utils.utils import preprocessing_transcript
 
 class AudioDataset(data.Dataset):
     def __init__(self, data_files: List[str], tokenizer: PreTrainedTokenizerBase, cache_folder: str = ".cache") -> None:
@@ -58,11 +58,11 @@ class AudioDataset(data.Dataset):
         
         transcript = self.__data[id]["transcript"]
         transcript = preprocessing_transcript(transcript)
-        transcript = self.tokenizer.tokenize(transcript)
-        transcript = [self.tokenizer.bos_token] + transcript + [self.tokenizer.eos_token]
-        transcript = pad_tokens(transcript, self.max_transcript_len, pad_value=self.tokenizer.pad_token)
-        tokens = self.tokenizer.encode(transcript)
-        tokens = torch.tensor(tokens).unsqueeze(0)
+        tokens = self.tokenizer(
+                        text=transcript,
+                        max_length=self.max_transcript_len,
+                        padding=True,
+                        return_tensors="pt")["input_ids"]
 
         sampling_rate = self.__data[id]["sampling_rate"]
         sampling_rate = torch.tensor([sampling_rate])
