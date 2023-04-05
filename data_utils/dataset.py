@@ -69,14 +69,12 @@ class AudioDataset(data.Dataset):
     def __load_features(self, file_name):
         features = np.load(file_name)
 
-        return torch.tensor(features).unsqueeze(0)
+        return torch.tensor(features)[:100].unsqueeze(0)
     
     def __getitem__(self, index: int):
         id = self.__ids[index]
         features_path = self.__data[id]["features_path"]
         features = self.__load_features(features_path)
-        # sampling_rate = self.__data[id]["sampling_rate"]
-        # features = torchaudio.functional.resample(features, sampling_rate, 16000)
         
         transcript = self.__data[id]["transcript"]
         transcript = preprocessing_transcript(transcript)
@@ -86,7 +84,7 @@ class AudioDataset(data.Dataset):
                         max_length=self.max_transcript_len,
                         padding="max_length",
                         return_tensors="pt")["input_ids"]
-        tokens_len = torch.tensor([len(self.tokenizer.tokenize(transcript))])
+        tokens_len = torch.tensor([len(self.tokenizer.tokenize(transcript))]).unsqueeze(0)
 
         return Instance(
             features=features,
