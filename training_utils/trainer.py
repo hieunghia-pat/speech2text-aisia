@@ -11,6 +11,7 @@ from data_utils.dataset import AudioDataset
 from utils.logging_utils import setup_logger
 from data_utils.utils import collate_fn
 from training_utils.metrics import computes
+from training_utils.utils import batch_decode
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 logger = setup_logger()
@@ -48,7 +49,7 @@ class Trainer:
         if self.dev_dataset is not None:
             self.dev_dataloader = data.DataLoader(
                 self.dev_dataset,
-                batch_size=batch_size,
+                batch_size=1,
                 shuffle=True,
                 collate_fn=collate_fn,
                 num_workers=num_wokers
@@ -57,7 +58,7 @@ class Trainer:
             self.dev_dataloader = None
         self.test_dataloader = data.DataLoader(
             self.test_dataset,
-            batch_size=batch_size,
+            batch_size=1,
             shuffle=True,
             collate_fn=collate_fn,
             num_workers=num_wokers
@@ -74,10 +75,23 @@ class Trainer:
         )
 
     def save_checkpoint(self, path: str):
-        pass
+        torch.save({
+            "model": self.model.state_dict(),
+            "optim": self.optim.state_dict(),
+            "best_cer": self.best_cer,
+            "best_wer": self.best_wer,
+            "epoch": self.epoch,
+            "patient": self.patient
+        }, os.path.join(self.checkpoint_path, path))
 
     def load_checkpoint(self, path: str):
-        pass
+        state_dict = torch.load(os.path.join(self.checkpoint_path, path))
+        self.model.load_state_dict(state_dict["model"])
+        self.optim.load_state_dict(state_dict["optim"])
+        self.epoch = state_dict["epoch"]
+        self.best_cer = state_dict["best_cer"]
+        self.best_wer = state_dict["best_wer"]
+        self.patient = state_dict["patient"]
 
     def train(self):
         total_loss = 0.
@@ -99,32 +113,59 @@ class Trainer:
                 pb.update()
 
     def validate(self):
+        cer = 0.
+        wer = 0.
         self.model.eval()
-        with tqdm(self.train_dataloader, desc=f"Epoch {self.epoch+1} - Validating") as pb:
+        with tqdm(self.dev_dataloader, desc=f"Epoch {self.epoch+1} - Validating") as pb:
             for ith, item in enumerate(pb):
                 item = item.to(device)
                 output = self.model(item.features)
+
+                predicted = output.max(dim=-1)
+                predicted_scripts = batch_decode(predicted, self.tokenizer)
+                scripts = batch_decode(item.tokens, self.tokenizer)
+
+                scores = computes(predicted_scripts, scripts)
+                cer += scores["cer"]
+                wer += scores["wer"]
                 
                 pb.set_postfix({
-                    "loss": total_loss / (ith+1)
+                    "cer": cer / (ith+1),
+                    "wer": wer / (ith+1)
                 })
                 pb.update()
 
     def evaluate(self):
-        pass
+        cer = 0.
+        wer = 0.
+        self.model.eval()
+        with tqdm(self.test_dataloader, desc=f"Epoch {self.epoch+1} - Evaluating") as pb:
+            for ith, item in enumerate(pb):
+                item = item.to(device)
+                output = self.model(item.features)
+
+                predicted = output.max(dim=-1)
+                predicted_scripts = batch_decode(predicted, self.tokenizer)
+                scripts = batch_decode(item.tokens, self.tokenizer)
+
+                scores = computes(predicted_scripts, scripts)
+                cer += scores["cer"]
+                wer += scores["wer"]
+                
+                pb.set_postfix({
+                    "cer": cer / (ith+1),
+                    "wer": wer / (ith+1)
+                })
+                pb.update()
 
     def start(self):
         if os.path.isfile(os.path.join(self.checkpoint_path, "last_model.pth")):
-            state_dict = torch.load(os.path.join(self.checkpoint_path, "last_model.pth"))
-            self.model.load_state_dict(state_dict["model"])
-            self.optim.load_state_dict(state_dict["optim"])
-            self.epoch = state_dict["epoch"]
-            self.best_cer = state_dict["best_cer"]
-            self.best_wer = state_dict["best_wer"]
+            self.load_checkpoint("last_model.pth")
         else:
             self.epoch = 0
             self.best_cer = 1.
             self.best_wer = 1.
+            self.patient = 0
 
         while True:
             logger.info(f"Epoch {self.epoch+1}")
@@ -149,6 +190,12 @@ class Trainer:
                 self.best_cer = cer
                 self.best_wer = wer
                 save_best_model = True
+            else:
+                self.patient += 1
+
+            if self.patient == 5:
+                logger.info("Patient reached. The training process has done.")
+                break
 
             if save_best_model:
                 self.save_checkpoint("best_model.pth")

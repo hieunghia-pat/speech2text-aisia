@@ -1,7 +1,6 @@
 from jiwer import cer_contiguous as cer, wer_contiguous as wer
 from typing import List
 import numpy as np
-import re
 
 def computes(hypos: List[str], refs: List[str]):
     cers = []
