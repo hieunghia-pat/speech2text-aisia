@@ -1,4 +1,4 @@
-from jiwer import cer_contiguous as cer, wer_contiguous as wer
+from jiwer import cer, wer
 from typing import List
 import numpy as np
 

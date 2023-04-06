@@ -122,7 +122,7 @@ class Trainer:
                 item = item.to(device)
                 output = self.model(item.features)
 
-                predicted = output.max(dim=-1)
+                predicted = output.argmax(dim=-1)
                 predicted_scripts = batch_decode(predicted, self.tokenizer)
                 scripts = batch_decode(item.tokens, self.tokenizer)
 
@@ -145,7 +145,7 @@ class Trainer:
                 item = item.to(device)
                 output = self.model(item.features)
 
-                predicted = output.max(dim=-1)
+                predicted = output.argmax(dim=-1)
                 predicted_scripts = batch_decode(predicted, self.tokenizer)
                 scripts = batch_decode(item.tokens, self.tokenizer)
 
