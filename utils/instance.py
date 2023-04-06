@@ -162,12 +162,24 @@ class InstanceList(OrderedDict):
             
             if additional_len == 0:
                 padded_values.append(value)
-                continue
+            else:
+                size_to_pad = (0, additional_len)
+                if isinstance(value, torch.Tensor):
+                    value = torch.nn.functional.pad(
+                        value,
+                        pad=size_to_pad,
+                        mode="constant",
+                        value=padding_value
+                    )
+                elif isinstance(value, np.ndarray):
+                    value = np.pad(
+                        value,
+                        pad_width=(size_to_pad),
+                        mode="constant",
+                        constant_values=padding_value
+                    )
 
-            padding_tensor = torch.zeros((additional_len, value.shape[-1])).fill_(padding_value)
-            value = torch.cat([value, padding_tensor], dim=-1)
-
-            padded_values.append(value)
+                padded_values.append(value)
         
         return padded_values
 

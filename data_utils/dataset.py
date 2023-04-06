@@ -1,5 +1,4 @@
 import torch
-import torchaudio
 from torch.utils import data
 from transformers import PreTrainedTokenizerBase
 import datasets
@@ -69,7 +68,7 @@ class AudioDataset(data.Dataset):
     def __load_features(self, file_name):
         features = np.load(file_name)
 
-        return torch.tensor(features)[:100].unsqueeze(0)
+        return torch.tensor(features).unsqueeze(0)
     
     def __getitem__(self, index: int):
         id = self.__ids[index]
