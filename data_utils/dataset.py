@@ -83,7 +83,7 @@ class AudioDataset(data.Dataset):
                         max_length=self.max_transcript_len,
                         padding="max_length",
                         return_tensors="pt")["input_ids"]
-        tokens_len = torch.tensor([len(self.tokenizer.tokenize(transcript))]).unsqueeze(0)
+        tokens_len = torch.tensor([len(self.tokenizer.tokenize(transcript))])
 
         return Instance(
             features=features,

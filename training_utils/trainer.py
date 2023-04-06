@@ -101,14 +101,15 @@ class Trainer:
                 item = item.to(device)
                 output = self.model(item.features)
                 output_len = torch.zeros((output.shape[0], )).fill_(output.shape[1])
+                output = output.permute((1, 0, -1))
                 self.optim.zero_grad()
-                loss = self.loss_fn(output, item.tokens, item.tokens_len, output_len)
+                loss = self.loss_fn(output, item.tokens.long(), output_len.long(), item.tokens_len.long())
                 loss.backward()
                 self.optim.step()
 
                 total_loss += loss
                 pb.set_postfix({
-                    "loss": total_loss / (ith+1)
+                    "loss": total_loss.item() / (ith+1)
                 })
                 pb.update()
 

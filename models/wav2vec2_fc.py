@@ -10,7 +10,7 @@ class Wav2Vec2FC(nn.Module):
         self.wav2vec = AutoModel.from_pretrained(pretrained_name)
         # freeze the base model
         for param in self.wav2vec.parameters():
-            param.requires_grad_ = False
+            param.requires_grad = False
         
         # layers for fine-tuning
         self.dropout = nn.Dropout(0.5)
